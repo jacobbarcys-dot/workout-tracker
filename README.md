@@ -76,9 +76,12 @@ Each exercise declares how it's measured, and the set table adapts:
 ## Notes
 
 - Weights are in **lbs**.
-- Data lives in `localStorage` under the key `lift.db.v1`, which is per-browser
-  and per-device. Clearing site data wipes your history — an export/backup
-  button is the next planned feature.
+- Data lives in `localStorage`, which is per-browser and per-device. Use
+  **Settings (⚙ on Home) → Export backup** to save a `.json` snapshot, and
+  **Import backup** to restore it or move it to another device. If a write ever
+  fails (storage full or blocked), a red banner says so rather than failing
+  silently.
+- Settings also sets your name and the rest-timer length (60s / 90s / 2m / 3m).
 
 ## License
 

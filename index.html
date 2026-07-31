@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#111418">
 <title>Lite Workout Tracker</title>
 <meta name="apple-mobile-web-app-title" content="Lite">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root{
     --bg:#111418; --card:#1b2027; --card2:#232a33; --line:#2c343f;
@@ -143,10 +146,6 @@
   }
   .round-hint{font-size:11px; color:var(--muted); padding:0 4px 9px; line-height:1.45;}
   .round-box .card{margin-bottom:9px; border-color:rgba(169,123,245,.3); background:var(--card);}
-  .round-step{
-    display:flex; align-items:center; gap:6px; padding:0 4px 8px;
-    font-size:11px; color:var(--purple); font-weight:700;
-  }
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:6px;
     background:var(--accent); color:#fff; border:none; border-radius:10px;
@@ -216,7 +215,6 @@
   }
   .pill.day{background:var(--accent-dim); color:var(--accent); border-color:transparent; font-weight:700;}
   .pill.ss{background:rgba(169,123,245,.18); color:var(--purple); border-color:transparent; font-weight:700;}
-  .pill.mode{font-size:10px;}
 
   .lrow{
     display:flex; align-items:center; gap:12px; padding:13px 4px;
@@ -250,6 +248,12 @@
   .over h3{font-size:17px; margin-bottom:8px;}
   .over .msg{font-size:13px; color:var(--muted); line-height:1.55; margin-bottom:16px;}
   .btn.hot{background:var(--red); color:#fff;}
+
+  #saveWarn{
+    position:fixed; top:0; left:0; right:0; z-index:70;
+    background:var(--red); color:#fff; font-size:12px; font-weight:700;
+    padding:9px 14px; text-align:center; line-height:1.4; cursor:pointer;
+  }
 
   #restBar{
     background:var(--accent-dim); border:1px solid var(--accent); border-radius:12px;
@@ -594,7 +598,27 @@ for (const [name, muscle, equipment, mode] of SEED_EXERCISES){
     db.exercises.push({id:uid(), name, muscle, equipment, mode: mode || "weight_reps", custom:false});
 }
 
-const save = () => localStorage.setItem(DB_KEY, JSON.stringify(db));
+/* A failed write used to throw silently out of whatever called it — the app
+   kept looking fine while nothing was persisted. Now it says so, loudly. */
+let saveBroken = false;
+function save(){
+  try {
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+    if (saveBroken){ saveBroken = false; document.getElementById("saveWarn")?.remove(); }
+    return true;
+  } catch (err){
+    console.error("Could not save to localStorage:", err);
+    if (!saveBroken){
+      saveBroken = true;
+      const d = document.createElement("div");
+      d.id = "saveWarn";
+      d.textContent = "⚠ Can't save — storage is full or blocked. Export a backup from Settings before closing this tab.";
+      d.onclick = () => openSettings();
+      document.body.appendChild(d);
+    }
+    return false;
+  }
+}
 const exById   = id => db.exercises.find(e => e.id === id);
 const exByName = nm => db.exercises.find(e => e.name === nm);
 const modeOf   = id => exById(id)?.mode || "weight_reps";
@@ -864,7 +888,7 @@ function logDeload(){ db.deload.lastReset = todayISO(); save(); renderHome(); }
 function renderHome(){
   const name = (db.profile.name || "").trim();
   setHeader(name ? `Hello, ${name}` : "Hello", "",
-    `<button class="btn small ghost" onclick="editProfile()">⚙</button>`);
+    `<button class="btn small ghost" onclick="openSettings()">⚙</button>`);
 
   const streak = weekStreak();
   const hrs = msThisWeek() / 36e5;
@@ -940,8 +964,71 @@ function renderHome(){
 }
 function editProfile(){
   askText("What should I call you?", "Your name", db.profile.name || "", "Save", v => {
-    db.profile.name = v; save(); renderHome();
+    db.profile.name = v; save(); openSettings();
   });
+}
+
+/* ---- settings, backup, restore ---- */
+function openSettings(){
+  const rest = db.settings.restSec;
+  const counts = `${db.workouts.length} workout${db.workouts.length===1?"":"s"} · ${db.routines.length} routines · ${db.exercises.length} exercises`;
+  openOver(`
+    <h3>Settings</h3>
+    <div class="msg">${esc(counts)}</div>
+
+    <button class="btn ghost" style="text-align:left;justify-content:flex-start" onclick="closeOver();editProfile()">
+      Name — <span style="color:var(--accent);margin-left:4px">${esc(db.profile.name || "not set")}</span></button>
+
+    <div class="xs muted" style="margin:14px 2px 6px">Rest timer</div>
+    <div class="row">
+      ${[60,90,120,180].map(n => `<button class="btn small grow ${n===rest?"":"ghost"}"
+        onclick="setRest(${n})">${n<120?n+"s":(n/60)+"m"}</button>`).join("")}
+    </div>
+
+    <div class="xs muted" style="margin:16px 2px 6px">Backup — your data lives only in this browser</div>
+    <button class="btn ghost" onclick="exportBackup()">⬇ Export backup (.json)</button>
+    <button class="btn ghost mt8" onclick="importBackup()">⬆ Import backup</button>
+
+    <button class="btn ghost mt12" onclick="closeOver()">Done</button>
+  `);
+}
+function setRest(n){ db.settings.restSec = n; save(); openSettings(); }
+
+function exportBackup(){
+  const stamp = new Date().toISOString().slice(0,10);
+  const blob = new Blob([JSON.stringify(db, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `lite-workout-backup-${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function importBackup(){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "application/json,.json";
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try { data = JSON.parse(reader.result); }
+      catch (e){ return askConfirm("Import failed", "That file isn't valid JSON.", "OK", () => openSettings()); }
+      if (!data || !Array.isArray(data.exercises) || !Array.isArray(data.routines))
+        return askConfirm("Import failed", "That doesn't look like a Lite backup — no exercises or routines in it.", "OK", () => openSettings());
+      askConfirm("Replace everything?",
+        `The backup holds ${data.workouts?.length || 0} workouts, ${data.routines.length} routines and ${data.exercises.length} exercises. ` +
+        `It replaces all data on this device, and the app will reload.`,
+        "Replace everything",
+        () => {
+          try { localStorage.setItem(DB_KEY, JSON.stringify(data)); }
+          catch (e){ return askConfirm("Import failed", "Couldn't write to storage — it may be full.", "OK", () => {}); }
+          location.reload();
+        });
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
 }
 function logBodyweight(){
   askText("Log bodyweight", "lbs", latestBW() ? String(latestBW().lbs) : "", "Save", v => {
