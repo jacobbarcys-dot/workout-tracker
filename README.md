@@ -14,8 +14,11 @@ mobile browser and use **Add to Home Screen** for a full-screen, app-like feel.
 ## Features
 
 **Workouts**
-- Start an empty workout or launch a saved routine
-- Today's routine surfaces automatically at the top of the Workout tab
+- Start an empty workout or launch a saved routine from Home or Routines
+- A running workout takes over the screen with its own live timer. Collapse it
+  with the ▾ and it shrinks to a bar above the tab bar, so you can browse the
+  rest of the app mid-session; tap the bar to go full screen again. The
+  collapsed state survives a reload
 - Live duration, volume, and set counters
 - Per-set logging with a checkmark; completed rows highlight green
 - **Sets arrive pre-filled** — last session's actual numbers win, and on a
