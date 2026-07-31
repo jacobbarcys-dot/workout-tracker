@@ -1,4 +1,4 @@
-# Lift — Workout Tracker
+# Lite Workout Tracker
 
 A Hevy-style workout tracker in a single HTML file. No build step, no backend,
 no account. Open it and train.
